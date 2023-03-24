@@ -149,13 +149,9 @@ class linear_act_cuda(Function):
         
         out_shape = list(h_input.shape)
         out_shape[-1] = h_weight.shape[0]
-        # if h_input.shape == torch.Size([512, 128, 8960]):
-        #     print("1")
-        #     import IPython
-        #     IPython.embed()
         out = qfe.quantize(h_input_flatten, h_weight, scale_input, scale_weight)
-        forward_time_vector = out[3]
-        time_forward(forward_time_vector)
+        # forward_time_vector = out[3]
+        # time_forward(forward_time_vector)
         output = out[0].reshape(out_shape)
         
         # out[2] is q_input_flatten, out[3] is q_weight
@@ -170,8 +166,10 @@ class linear_act_cuda(Function):
     def backward(ctx, grad_output):
         # assert torch.isnan(grad_output).any() == False
         # print("backward")
-        torch.cuda.synchronize()
-        time_linear_start = time.time()
+        
+        # torch.cuda.synchronize()
+        # time_linear_start = time.time()
+        
         C_out = grad_output.shape[-1]
         # assert grad_output.dtype == torch.float16
         grad_output_flatten = grad_output.reshape(-1, C_out)
@@ -179,24 +177,22 @@ class linear_act_cuda(Function):
         q_input_flatten, q_weight, scale_input, scale_weight, bias, input_shape = ctx.saved
         # dequantize_input_flatten = (q_input_flatten * scale_input.half())
         # dequantize_weight = (q_weight * scale_weight.half())
-        try:
-            flag_weight = (q_input_flatten.shape[1] % 4 != 0)
-            if flag_weight:
-                start = time.time()
-                grad_weight, grad_scale_weight = special_quantize_grad_weight(grad_output_flatten, q_input_flatten, scale_input, 4, q_weight)
-                torch.cuda.synchronize()
-                qconfig.special_layer += time.time() - start
-            else:
-                # h_weight = (q_weight * scale_weight.half())
-                # dequantize_input_flatten = (q_input_flatten * scale_input.half())
-                # weight_out = quantize_grad_weight_speed.quantize(grad_output_flatten, 4, dequantize_input_flatten, q_input_flatten, scale_input, h_weight, scale_weight)
-                weight_out = qgw.quantize(grad_output_flatten, 4, q_input_flatten, scale_input, q_weight)
-                grad_weight, grad_scale_weight = weight_out[0], weight_out[1]
-                grad_weight_time_vector = weight_out[3]
-                time_grad_weight(grad_weight_time_vector)
-        except:
-            import IPython
-            IPython.embed()
+        
+        flag_weight = (q_input_flatten.shape[1] % 4 != 0)
+        if flag_weight:
+            start = time.time()
+            grad_weight, grad_scale_weight = special_quantize_grad_weight(grad_output_flatten, q_input_flatten, scale_input, 4, q_weight)
+            torch.cuda.synchronize()
+            qconfig.special_layer += time.time() - start
+        else:
+            # h_weight = (q_weight * scale_weight.half())
+            # dequantize_input_flatten = (q_input_flatten * scale_input.half())
+            # weight_out = quantize_grad_weight_speed.quantize(grad_output_flatten, 4, dequantize_input_flatten, q_input_flatten, scale_input, h_weight, scale_weight)
+            
+            weight_out = qgw.quantize(grad_output_flatten, 4, q_input_flatten, scale_input, q_weight)
+            grad_weight, grad_scale_weight = weight_out[0], weight_out[1]
+            # grad_weight_time_vector = weight_out[3]
+            # time_grad_weight(grad_weight_time_vector)
             
 
         # then calculate grad_input_flatten and grad_scale_input
@@ -210,8 +206,9 @@ class linear_act_cuda(Function):
             activation_out = qgi.quantize(grad_output_flatten, 4, q_weight, scale_weight, q_input_flatten, weight_out[-5], weight_out[-4], weight_out[-3], weight_out[-2], weight_out[-1])
             # suppose out1 is grad_input_flatten, out2 is grad_scale_input
             grad_input_flatten, grad_scale_input = activation_out[0], activation_out[1]
-            grad_input_time_vector = activation_out[4]
-            time_grad_input(grad_input_time_vector)
+            
+            # grad_input_time_vector = activation_out[4]
+            # time_grad_input(grad_input_time_vector)
             
         if bias is not None:
             grad_bias = grad_output_flatten.sum(0)
@@ -219,9 +216,9 @@ class linear_act_cuda(Function):
             grad_bias = None
             
         grad_input = grad_input_flatten.reshape(input_shape)
-        torch.cuda.synchronize()
-        time_linear_end = time.time()
-        qconfig.linear_backward += time_linear_end - time_linear_start
+        # torch.cuda.synchronize()
+        # time_linear_end = time.time()
+        # qconfig.linear_backward += time_linear_end - time_linear_start
         return grad_input, grad_weight, grad_scale_input, grad_scale_weight, grad_bias
 
 class QLinear(nn.Linear):
@@ -245,8 +242,8 @@ class QLinear(nn.Linear):
         # ) if bias else None
         
     def forward(self, input : torch.Tensor):
-        torch.cuda.synchronize()
-        time_linear_start = time.time()
+        # torch.cuda.synchronize()
+        # time_linear_start = time.time()
         
         if self.first_pass:
             self.scale_input.data = self.scale_input.data.abs()
@@ -256,9 +253,9 @@ class QLinear(nn.Linear):
             print("Actually Using QLinear!")
             self.first_pass = True
             
-        torch.cuda.synchronize()
-        time_hadamard_start = time.time()
-        qconfig.scale += time_hadamard_start - time_linear_start
+        # torch.cuda.synchronize()
+        # time_hadamard_start = time.time()
+        # qconfig.scale += time_hadamard_start - time_linear_start
         
         input_flatten = input.view(-1, input.shape[-1])
         input_shape = input.shape
@@ -273,9 +270,9 @@ class QLinear(nn.Linear):
         weight_shape = self.weight.shape
         h_weight = self.weight.reshape(-1, qconfig.hadamard_group).matmul(self.hadamard).reshape(weight_shape)
         
-        torch.cuda.synchronize()
-        time_hadamard_end = time.time()
-        qconfig.hadamard += time_hadamard_end - time_hadamard_start
+        # torch.cuda.synchronize()
+        # time_hadamard_end = time.time()
+        # qconfig.hadamard += time_hadamard_end - time_hadamard_start
         
         if not self.initialize_input:
             # print(h_input)
@@ -293,7 +290,7 @@ class QLinear(nn.Linear):
         
         output = linear_act_cuda.apply(h_input, h_weight, self.scale_input, self.scale_weight, qbias)
         
-        torch.cuda.synchronize()
-        time_linear_end = time.time()
-        qconfig.linear_forward += time_linear_end - time_linear_start
+        # torch.cuda.synchronize()
+        # time_linear_end = time.time()
+        # qconfig.linear_forward += time_linear_end - time_linear_start
         return output
