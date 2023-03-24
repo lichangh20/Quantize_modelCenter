@@ -19,7 +19,7 @@ from typing import Optional
 import torch
 import bmtrain as bmt
 import torch.nn.functional as F
-from .linear import Linear
+from .linear import Linear, QLinear
 
 
 class Attention(bmt.DistributedModule):
@@ -57,6 +57,7 @@ class Attention(bmt.DistributedModule):
                        attn_scale : bool = False,
                        dropout_p : float= 0,
                        shared_key_and_value = False,
+                       quantize : bool = False,
         ):
 
         super().__init__()
@@ -66,53 +67,78 @@ class Attention(bmt.DistributedModule):
 
         num_heads_kv = 1 if shared_key_and_value else num_heads 
 
-        self.project_q = Linear(
-            dim_in = dim_in,
-            dim_out = num_heads * dim_head,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+        if quantize:
+            self.project_q = bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_in,
+                out_features=num_heads * dim_head,
+                bias=bias,
+            ))
+            
+            self.project_k = bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_in,
+                out_features=num_heads_kv * dim_head,
+                bias=bias,
+            ))
+            
+            self.project_v = bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_in,
+                out_features=num_heads_kv * dim_head,
+                bias=bias,
+            ))
+            
+            self.attention_out = bmt.BMTrainModelWrapper(QLinear(
+                in_features=num_heads * dim_head,
+                out_features=dim_out,
+                bias=bias,
+            ))
+        else:
+            self.project_q = Linear(
+                dim_in = dim_in,
+                dim_out = num_heads * dim_head,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
 
-        self.project_k = Linear(
-            dim_in = dim_in,
-            dim_out = num_heads_kv * dim_head,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+            self.project_k = Linear(
+                dim_in = dim_in,
+                dim_out = num_heads_kv * dim_head,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
 
-        self.project_v = Linear(
-            dim_in = dim_in,
-            dim_out = num_heads_kv * dim_head,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+            self.project_v = Linear(
+                dim_in = dim_in,
+                dim_out = num_heads_kv * dim_head,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
 
-        self.attention_out = Linear(
-            dim_in = num_heads * dim_head,
-            dim_out = dim_out,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+            self.attention_out = Linear(
+                dim_in = num_heads * dim_head,
+                dim_out = dim_out,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
         self.init_mean = init_mean
         self.init_std = init_std
         self.dim_in = dim_in

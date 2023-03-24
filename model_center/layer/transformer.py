@@ -74,6 +74,7 @@ class Encoder(torch.nn.Module):
             sparse_attention : bool = False,
             attention_window : int = 512,
             mask_modules : Optional[List[Tuple[int, int]]] = None,
+            quantize : bool = False,
         ):
 
         super().__init__()
@@ -118,6 +119,7 @@ class Encoder(torch.nn.Module):
                         attention_window = attention_window,
                         mask_att = mask_modules[ith][0],
                         mask_ffn = mask_modules[ith][1],
+                        quantize = quantize,
                     )
                 )
                 for ith in range(num_layers)

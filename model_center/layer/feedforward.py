@@ -16,7 +16,7 @@
 import torch
 import bmtrain as bmt
 
-from .linear import Linear
+from .linear import Linear, QLinear
 
 import math
 
@@ -40,32 +40,47 @@ class DenseGatedACT(bmt.DistributedModule):
                  init_std = 0.02,
                  bias = False,
                  length_scale : bool = False,
+                 quantize : bool = False,
         ):
         super().__init__()
 
-        self.w_0 = Linear(
-            dim_in = dim_in,
-            dim_out = dim_ff,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+        if quantize:
+            self.w_0 = bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_in,
+                out_features=dim_ff,
+                bias=bias,
+            ))
+            
+            self.w_1 = bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_in,
+                out_features=dim_ff,
+                bias=bias,
+            ))
+            
+        else:
+            self.w_0 = Linear(
+                dim_in = dim_in,
+                dim_out = dim_ff,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
 
-        self.w_1 = Linear(
-            dim_in = dim_in,
-            dim_out = dim_ff,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+            self.w_1 = Linear(
+                dim_in = dim_in,
+                dim_out = dim_ff,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
 
         if activate_fn == "relu":
             self.act = torch.nn.ReLU()
@@ -106,20 +121,29 @@ class DenseACT(bmt.DistributedModule):
                  init_std = 0.02,
                  bias = False,
                  length_scale : bool = False,
+                 quantize : bool = False,
         ):
         super().__init__()
 
-        self.w = Linear(
-            dim_in = dim_in,
-            dim_out = dim_ff,
-            length_scale = length_scale,
-            length_scale_before = False,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+        if quantize:
+            self.w =  bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_in,
+                out_features=dim_ff,
+                bias=bias,
+            ))
+            
+        else:
+            self.w = Linear(
+                dim_in = dim_in,
+                dim_out = dim_ff,
+                length_scale = length_scale,
+                length_scale_before = False,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
         
         if activate_fn == "relu":
             self.act = torch.nn.ReLU()
@@ -140,6 +164,9 @@ class DenseACT(bmt.DistributedModule):
         Return:
             out (:obj:`torch.Tensor` of shape ``(batch, seq_len, dim_ff)``) 
         """
+        # if x.shape == torch.Size([512, 128, 8960]):
+        #     import IPython
+        #     IPython.embed()
         x = self.w(x)
         x = self.act(x)
         
@@ -172,6 +199,7 @@ class FeedForward(bmt.DistributedModule):
                  activate_fn = "gated_gelu",
                  length_scale : bool = False,
                  dropout_p = 0,
+                 quantize : bool = False,
         ):
 
         super().__init__()
@@ -187,6 +215,7 @@ class FeedForward(bmt.DistributedModule):
                 init_std = init_std,
                 bias = bias,
                 length_scale = length_scale,
+                quantize=quantize,
             )
         else:
             self.w_in = DenseACT(
@@ -199,6 +228,7 @@ class FeedForward(bmt.DistributedModule):
                 init_std = init_std,
                 bias = bias,
                 length_scale = length_scale,
+                quantize=quantize,
             )
 
         if dropout_p:
@@ -212,17 +242,25 @@ class FeedForward(bmt.DistributedModule):
         self.dim_ff = dim_ff
         self.dim_out = dim_out
 
-        self.w_out = Linear(
-            dim_in = dim_ff,
-            dim_out = dim_out,
-            length_scale = length_scale,
-            length_scale_before = True,
-            dtype = dtype,
-            int8 = int8,
-            init_mean = init_mean,
-            init_std = init_std,
-            bias = bias,
-        )
+        if quantize:
+            self.w_out = bmt.BMTrainModelWrapper(QLinear(
+                in_features=dim_ff,
+                out_features=dim_out,
+                bias=bias,
+            ))
+            
+        else:
+            self.w_out = Linear(
+                dim_in = dim_ff,
+                dim_out = dim_out,
+                length_scale = length_scale,
+                length_scale_before = True,
+                dtype = dtype,
+                int8 = int8,
+                init_mean = init_mean,
+                init_std = init_std,
+                bias = bias,
+            )
 
         self.int8 = int8
         self.length_scale = length_scale

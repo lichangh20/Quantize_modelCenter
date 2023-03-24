@@ -17,15 +17,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, List
-from ..layer import Encoder, Embedding, Linear, LayerNorm
+from ..layer import Encoder, Embedding, Linear, LayerNorm, QLinear
 from .basemodel import BaseModel, BaseModelOutputWithPooling
 from .config import BertConfig
+import bmtrain as bmt
 
 
 class BertPooler(nn.Module):
-    def __init__(self, dim_model: int):
+    def __init__(self, dim_model: int, quantize: bool = False):
         super().__init__()
-        self.dense = Linear(dim_model, dim_model, bias=True)
+        if quantize:
+            self.dense = bmt.BMTrainModelWrapper(QLinear(dim_model, dim_model, bias=True))
+        else:
+            self.dense = Linear(dim_model, dim_model, bias=True)
         self.activation = nn.Tanh()
 
     def forward(self, hidden_states: torch.FloatTensor):
@@ -35,12 +39,16 @@ class BertPooler(nn.Module):
 
 
 class BertLMHead(nn.Module):
-    def __init__(self, dim_model: int, vocab_size: int, norm_eps: float):
+    def __init__(self, dim_model: int, vocab_size: int, norm_eps: float, quantize: bool = False):
         super().__init__()
-        self.dense = Linear(dim_model, dim_model, bias=True)
         self.activation = F.gelu
         self.layer_norm = LayerNorm(dim_model, eps=norm_eps)
-        self.decoder = Linear(dim_model, vocab_size, bias=True)
+        if quantize:
+            self.dense = bmt.BMTrainModelWrapper(QLinear(dim_model, dim_model, bias=True))
+            self.decoder = bmt.BMTrainModelWrapper(QLinear(dim_model, vocab_size, bias=True))
+        else:
+            self.dense = Linear(dim_model, dim_model, bias=True)
+            self.decoder = Linear(dim_model, vocab_size, bias=True)
 
     def forward(self, hidden_states: torch.FloatTensor, input_embedding: Optional[Embedding] = None):
         hidden_states = self.dense(hidden_states)
@@ -114,25 +122,34 @@ class Bert(BaseModel):
             attn_scale = config.attn_scale,
             dropout_p = config.dropout_p,
             post_layer_norm = config.post_layer_norm,
+            quantize = config.quantize,
         )
         # Output Layer
         if config.cls_head:
-            self.cls_projection = Linear(
-                dim_out = config.cls_head,
-                dim_in = config.dim_model,
-                length_scale = config.length_scale,
-                dtype = config.dtype,
-                int8 = config.int8,
-                init_mean = config.proj_init_mean,
-                init_std = config.proj_init_std,
-                bias = config.proj_bias,
-            )
+            if config.quantize:
+                self.cls_projection = bmt.BMTrainModelWrapper(QLinear(
+                    in_features=config.dim_model,
+                    out_features=config.cls_head,
+                    bias=config.proj_bias,
+                ))
+            else:
+                self.cls_projection = Linear(
+                    dim_out = config.cls_head,
+                    dim_in = config.dim_model,
+                    length_scale = config.length_scale,
+                    dtype = config.dtype,
+                    int8 = config.int8,
+                    init_mean = config.proj_init_mean,
+                    init_std = config.proj_init_std,
+                    bias = config.proj_bias,
+                )
         self.lm_head = BertLMHead(
             dim_model = config.dim_model,
             vocab_size = config.vocab_size,
             norm_eps = config.norm_eps,
+            quantize = config.quantize,
         )
-        self.pooler = BertPooler(config.dim_model)
+        self.pooler = BertPooler(config.dim_model, config.quantize)
 
     def forward(self,
                 input_ids: Optional[torch.Tensor] = None,

@@ -6,26 +6,39 @@ import numpy as np
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 
 import bmtrain as bmt
+import json
 
 from model_center import get_args
-from model_center.model import Bert
+from model_center.model import Bert, BertConfig
 from model_center.tokenizer import BertTokenizer
 from model_center.dataset.bertdataset import DATASET
 from model_center.utils import print_inspect
 from model_center.layer import Linear
 from model_center.dataset import DistributedDataLoader
+from model_center.layer import qconfig
 
 class BertModel(torch.nn.Module):
     def __init__(self, args, num_types):
         super().__init__()
-        self.bert : Bert = Bert.from_pretrained(args.model_config)
+        config = BertConfig.from_pretrained("bert-base-uncased")
+        #Todo
+        config.num_layers = 24
+        config.dim_model = args.dim_model
+        config.dim_ff = args.dim_ff
+        config.quantize = args.quantize
+        self.bert : Bert = Bert(config)
+        bmt.init_parameters(self.bert)
+        # self.bert : Bert = Bert.from_pretrained(args.model_config)
         dim_model = self.bert.input_embedding.dim_model
         self.dense = Linear(dim_model, num_types)
         bmt.init_parameters(self.dense)
 
     def forward(self, *args, **kwargs):
         pooler_output = self.bert(*args, **kwargs, output_pooler_output=True).pooler_output
+        assert pooler_output.dtype == torch.float16
         logits = self.dense(pooler_output)
+        # test_logit = torch.rand_like(logits) * 1e-3
+        # test_logit.requires_grad_(True)
         return logits
 
 def get_tokenizer(args):
@@ -119,6 +132,25 @@ def prepare_dataset(args, tokenizer, base_path, dataset_name, rank, world_size):
 
 
 def finetune(args, tokenizer, model, optimizer, lr_scheduler, dataset):
+    if not args.quantize:
+        # print("arrive!")
+        output_dir = "{}/examples/bert/result3/classic/{}_{}/batch={}".format(args.base_path,args.dim_model, args.dim_ff, args.batch_size)
+    else:
+        output_dir = "{}/examples/bert/result3/quantize/{}_{}/batch={}".format(args.base_path,args.dim_model, args.dim_ff, args.batch_size)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    with open(os.path.join(output_dir, "acc.txt"), "a") as f:
+        time_tuple = time.localtime(time.time())
+        print('Time {}/{:02d}/{:02d} {:02d}:{:02d}:{:02d}:'
+                .format(time_tuple[0], time_tuple[1], time_tuple[2], time_tuple[3],
+                        time_tuple[4], time_tuple[5]), file=f)
+    
+    for arg in vars(args):
+        print(arg, getattr(args, arg))
+        with open(os.path.join(output_dir, "acc.txt"), "a") as f:
+            print(arg, getattr(args, arg), file=f)
+    
     loss_func = bmt.loss.FusedCrossEntropy(ignore_index=-100)
 
     optim_manager = bmt.optim.OptimManager(loss_scale=args.loss_scale)
@@ -126,7 +158,10 @@ def finetune(args, tokenizer, model, optimizer, lr_scheduler, dataset):
 
     print_inspect(model, '*')
 
-    for epoch in range(12):
+    # for epoch in range(12):
+    start_time = time.time()
+    for epoch in range(5):
+        epoch_start_time = time.time()
         dataloader = {
             "train": DistributedDataLoader(dataset['train'], batch_size=args.batch_size, shuffle=True),
             "dev": DistributedDataLoader(dataset['dev'], batch_size=args.batch_size, shuffle=False),
@@ -237,6 +272,42 @@ def finetune(args, tokenizer, model, optimizer, lr_scheduler, dataset):
                     f1 = recall_score(gt, pd, average="macro")
                     bmt.print_rank(f"recall: {rcl*100:.2f}")
                     bmt.print_rank(f"Average F1: {f1*100:.2f}")
+        epoch_end_time = time.time()
+        epoch_time = epoch_end_time - epoch_start_time
+        with open(os.path.join(output_dir, "acc.txt"),"a") as f:
+            print("epoch {} time:{}".format(epoch, format(epoch_time, '.3f')), file=f)
+        
+    end_time = time.time()
+    training_time = end_time - start_time
+    with open(os.path.join(output_dir, "acc.txt"),"a") as f:
+        print("training time", format(training_time, '.3f'), file=f)
+        
+    if args.quantize:
+        with open(os.path.join(output_dir, "time.json"), "w") as f:
+            Dict = {}
+            Dict["forward"] = qconfig.forward
+            Dict["grad_weight"] = qconfig.grad_weight
+            Dict["grad_input"] = qconfig.grad_input
+            Dict["hadamard"] = qconfig.hadamard
+            Dict["special"] = qconfig.special_layer
+            Dict["scale"] = qconfig.scale
+            full_time_list = []
+            iterate_key = ["forward", "grad_weight", "grad_input"]
+            for keys in iterate_key:
+                fullTime = 0
+                for timesKey in Dict[keys].keys():
+                    if timesKey in ["method1", "method2", "method3"]:
+                        continue
+                    else:
+                        fullTime += Dict[keys][timesKey]
+                full_time_list.append(fullTime)
+            Dict["forward_other"] = qconfig.linear_forward - qconfig.hadamard - full_time_list[0] - qconfig.scale
+            Dict["forward_total"] = qconfig.linear_forward
+            Dict["backward_other"] = qconfig.linear_backward - full_time_list[1] - full_time_list[2]
+            Dict["backward_total"] = qconfig.linear_backward
+            Dict["linear_total"] = qconfig.linear_forward + qconfig.linear_backward
+            Dict["otherLayer_total"] = training_time - Dict["linear_total"]
+            json.dump(Dict, f, indent=4)
 
 
 def main():

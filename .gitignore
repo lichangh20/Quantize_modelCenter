@@ -153,3 +153,5 @@ src/BMTrain
 src/transformers
 logs
 debug.sh
+examples/bert/result*
+examples/bert/core

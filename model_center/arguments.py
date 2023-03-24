@@ -15,12 +15,28 @@
 
 import argparse
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected in train_cifar.')
+    
 def add_model_config_args(parser: argparse.ArgumentParser):
     """Model arguments"""
 
     group = parser.add_argument_group('model', 'model configuration')
     group.add_argument('--model-config', type=str, 
                        help='model configuration file')
+    group.add_argument('--dim_model', type=int, 
+                       help='size of hidden-dim in Bert')
+    group.add_argument('--quantize', type=str2bool, default=False,
+                       help='whether to use quantize Linear layer')
+    group.add_argument('--dim_ff', type=int, 
+                       help='size of intermidiate-dim in Bert')
     return parser
 
 def add_training_args(parser: argparse.ArgumentParser):

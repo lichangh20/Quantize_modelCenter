@@ -20,4 +20,5 @@ from .position_embedding import RelativePositionEmbedding, RotaryEmbedding, Segm
 from .blocks import SelfAttentionBlock, CrossAttentionBlock, FFNBlock, TransformerBlock
 from .transformer import Encoder, Decoder
 from .embedding import Embedding, PatchEmbedding
-from .linear import Linear
+from .linear import Linear, QLinear, qconfig
+from .special_quantize import special_quantize_grad_input, special_quantize_grad_weight

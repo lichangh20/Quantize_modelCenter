@@ -63,6 +63,7 @@ class SelfAttentionBlock(torch.nn.Module):
                  dropout_p : float = 0,
                  sparse_attention : bool = False,
                  attention_window : int = 512,
+                 quantize : bool = False,
         ):
 
         super().__init__()
@@ -91,6 +92,7 @@ class SelfAttentionBlock(torch.nn.Module):
                 length_scale = length_scale,
                 attn_scale = attn_scale,
                 dropout_p = dropout_p,
+                quantize=quantize,
             )
         else:
             self.self_attention = SparseSelfAttention(
@@ -199,6 +201,7 @@ class CrossAttentionBlock(torch.nn.Module):
                  dropout_p : float = 0,
                  sparse_attention : bool = False,
                  attention_window : int = 512,
+                 quantize : bool = False,
         ):
 
         super().__init__()
@@ -228,6 +231,7 @@ class CrossAttentionBlock(torch.nn.Module):
                 length_scale = length_scale,
                 attn_scale = attn_scale,
                 dropout_p = dropout_p,
+                quantize=quantize,
             )
         else:
             self.self_attention = SparseSelfAttention(
@@ -333,6 +337,7 @@ class FFNBlock(torch.nn.Module):
                  post_layer_norm : bool = False,
                  length_scale : bool = False,
                  dropout_p : float = 0,
+                 quantize : bool = False,
                 ):
         super().__init__()
 
@@ -355,6 +360,7 @@ class FFNBlock(torch.nn.Module):
             bias = ffn_bias,
             activate_fn = ffn_activate_fn,
             length_scale = length_scale,
+            quantize = quantize,
         )
 
         if dropout_p:
@@ -442,6 +448,7 @@ class TransformerBlock(torch.nn.Module):
                  mask_att: bool = False,
                  mask_cross: bool = False,
                  mask_ffn: bool = False,
+                 quantize: bool = False,
                 ):
         super().__init__()
 
@@ -471,6 +478,7 @@ class TransformerBlock(torch.nn.Module):
                 dropout_p = dropout_p,
                 sparse_attention = sparse_attention,
                 attention_window = attention_window,
+                quantize=quantize,
             )
 
         if is_decoder and not mask_cross:
@@ -491,6 +499,7 @@ class TransformerBlock(torch.nn.Module):
                 length_scale = length_scale,
                 attn_scale = attn_scale,
                 dropout_p = dropout_p,
+                quantize=quantize,
             )
         else:
             self.cross_att = None
@@ -511,6 +520,7 @@ class TransformerBlock(torch.nn.Module):
                 length_scale = length_scale,
                 dropout_p = dropout_p,
                 post_layer_norm = post_layer_norm,
+                quantize = quantize,
             )
 
         self.parallel_ffn = parallel_ffn
