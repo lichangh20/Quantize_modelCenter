@@ -20,7 +20,7 @@ from model_center.layer import qconfig
 class BertModel(torch.nn.Module):
     def __init__(self, args, num_types):
         super().__init__()
-        config = BertConfig.from_pretrained("bert-base-uncased")
+        config = BertConfig.from_pretrained("bert-large-uncased")
         #Todo
         config.num_layers = 24
         config.dim_model = args.dim_model
@@ -134,13 +134,13 @@ def prepare_dataset(args, tokenizer, base_path, dataset_name, rank, world_size):
 def finetune(args, tokenizer, model, optimizer, lr_scheduler, dataset):
     if not args.quantize:
         # print("arrive!")
-        output_dir = "{}/examples/bert/result3/classic/{}_{}/batch={}".format(args.base_path,args.dim_model, args.dim_ff, args.batch_size)
+        output_dir = "{}/examples/bert/result/classic/{}_{}/batch={}".format(args.base_path,args.dim_model, args.dim_ff, args.batch_size)
     else:
-        output_dir = "{}/examples/bert/result3/quantize/{}_{}/batch={}".format(args.base_path,args.dim_model, args.dim_ff, args.batch_size)
+        output_dir = "{}/examples/bert/result/quantize/{}_{}/batch={}".format(args.base_path,args.dim_model, args.dim_ff, args.batch_size)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
-    with open(os.path.join(output_dir, "acc.txt"), "a") as f:
+    with open(os.path.join(output_dir, "acc.txt"), "w") as f:
         time_tuple = time.localtime(time.time())
         print('Time {}/{:02d}/{:02d} {:02d}:{:02d}:{:02d}:'
                 .format(time_tuple[0], time_tuple[1], time_tuple[2], time_tuple[3],
@@ -160,7 +160,9 @@ def finetune(args, tokenizer, model, optimizer, lr_scheduler, dataset):
 
     # for epoch in range(12):
     start_time = time.time()
-    for epoch in range(5):
+    for epoch in range(6):
+        if epoch == 1:
+            epoch2_start_time = time.time()
         epoch_start_time = time.time()
         dataloader = {
             "train": DistributedDataLoader(dataset['train'], batch_size=args.batch_size, shuffle=True),
@@ -279,35 +281,37 @@ def finetune(args, tokenizer, model, optimizer, lr_scheduler, dataset):
         
     end_time = time.time()
     training_time = end_time - start_time
+    training_time_without_epoch1 = end_time - epoch2_start_time
     with open(os.path.join(output_dir, "acc.txt"),"a") as f:
         print("training time", format(training_time, '.3f'), file=f)
+        print("training time without epoch1", format(training_time_without_epoch1, '.3f'), file=f) 
         
-    if args.quantize:
-        with open(os.path.join(output_dir, "time.json"), "w") as f:
-            Dict = {}
-            Dict["forward"] = qconfig.forward
-            Dict["grad_weight"] = qconfig.grad_weight
-            Dict["grad_input"] = qconfig.grad_input
-            Dict["hadamard"] = qconfig.hadamard
-            Dict["special"] = qconfig.special_layer
-            Dict["scale"] = qconfig.scale
-            full_time_list = []
-            iterate_key = ["forward", "grad_weight", "grad_input"]
-            for keys in iterate_key:
-                fullTime = 0
-                for timesKey in Dict[keys].keys():
-                    if timesKey in ["method1", "method2", "method3"]:
-                        continue
-                    else:
-                        fullTime += Dict[keys][timesKey]
-                full_time_list.append(fullTime)
-            Dict["forward_other"] = qconfig.linear_forward - qconfig.hadamard - full_time_list[0] - qconfig.scale
-            Dict["forward_total"] = qconfig.linear_forward
-            Dict["backward_other"] = qconfig.linear_backward - full_time_list[1] - full_time_list[2]
-            Dict["backward_total"] = qconfig.linear_backward
-            Dict["linear_total"] = qconfig.linear_forward + qconfig.linear_backward
-            Dict["otherLayer_total"] = training_time - Dict["linear_total"]
-            json.dump(Dict, f, indent=4)
+    # if args.quantize:
+    #     with open(os.path.join(output_dir, "time.json"), "w") as f:
+    #         Dict = {}
+    #         Dict["forward"] = qconfig.forward
+    #         Dict["grad_weight"] = qconfig.grad_weight
+    #         Dict["grad_input"] = qconfig.grad_input
+    #         Dict["hadamard"] = qconfig.hadamard
+    #         Dict["special"] = qconfig.special_layer
+    #         Dict["scale"] = qconfig.scale
+    #         full_time_list = []
+    #         iterate_key = ["forward", "grad_weight", "grad_input"]
+    #         for keys in iterate_key:
+    #             fullTime = 0
+    #             for timesKey in Dict[keys].keys():
+    #                 if timesKey in ["method1", "method2", "method3"]:
+    #                     continue
+    #                 else:
+    #                     fullTime += Dict[keys][timesKey]
+    #             full_time_list.append(fullTime)
+    #         Dict["forward_other"] = qconfig.linear_forward - qconfig.hadamard - full_time_list[0] - qconfig.scale
+    #         Dict["forward_total"] = qconfig.linear_forward
+    #         Dict["backward_other"] = qconfig.linear_backward - full_time_list[1] - full_time_list[2]
+    #         Dict["backward_total"] = qconfig.linear_backward
+    #         Dict["linear_total"] = qconfig.linear_forward + qconfig.linear_backward
+    #         Dict["otherLayer_total"] = training_time - Dict["linear_total"]
+    #         json.dump(Dict, f, indent=4)
 
 
 def main():

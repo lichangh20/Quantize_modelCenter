@@ -139,3 +139,65 @@ do
         ${CMD} 2>&1 | tee ${BASE_PATH}/logs/bert_superglue/finetune-${VERSION}-${DATASET}.log
     done
 done
+
+for BATCH in 600
+# 
+do
+    for QUANTIZE in True False
+    # 
+    do
+        OPTS=""
+        OPTS+=" --model-config ${VERSION}"
+        OPTS+=" --base-path ${BASE_PATH}"
+        OPTS+=" --dataset_name ${DATASET}"
+        OPTS+=" --batch-size $BATCH"
+        OPTS+=" --warmup-iters 40"
+        OPTS+=" --lr 0.00005"
+        OPTS+=" --max-encoder-length 128"
+        OPTS+=" --train-iters 400"
+        OPTS+=" --lr-decay-style constant"
+        OPTS+=" --weight-decay 1e-2"
+        OPTS+=" --clip-grad 10.0"
+        OPTS+=" --loss-scale 128"
+        OPTS+=" --seed 28"
+        OPTS+=" --dim_model 7680"
+        OPTS+=" --dim_ff 30720"
+        OPTS+=" --quantize $QUANTIZE"
+
+        CMD="python3 -m torch.distributed.launch ${DISTRIBUTED_ARGS} ${BASE_PATH}/examples/bert/finetune_bert.py ${OPTS}"
+        echo ${CMD}
+
+        ${CMD} 2>&1 | tee ${BASE_PATH}/logs/bert_superglue/finetune-${VERSION}-${DATASET}.log
+    done
+done
+
+for BATCH in 960
+# 
+do
+    for QUANTIZE in True False
+    # 
+    do
+        OPTS=""
+        OPTS+=" --model-config ${VERSION}"
+        OPTS+=" --base-path ${BASE_PATH}"
+        OPTS+=" --dataset_name ${DATASET}"
+        OPTS+=" --batch-size $BATCH"
+        OPTS+=" --warmup-iters 40"
+        OPTS+=" --lr 0.00005"
+        OPTS+=" --max-encoder-length 128"
+        OPTS+=" --train-iters 400"
+        OPTS+=" --lr-decay-style constant"
+        OPTS+=" --weight-decay 1e-2"
+        OPTS+=" --clip-grad 10.0"
+        OPTS+=" --loss-scale 128"
+        OPTS+=" --seed 28"
+        OPTS+=" --dim_model 5120"
+        OPTS+=" --dim_ff 20480"
+        OPTS+=" --quantize $QUANTIZE"
+
+        CMD="python3 -m torch.distributed.launch ${DISTRIBUTED_ARGS} ${BASE_PATH}/examples/bert/finetune_bert.py ${OPTS}"
+        echo ${CMD}
+
+        ${CMD} 2>&1 | tee ${BASE_PATH}/logs/bert_superglue/finetune-${VERSION}-${DATASET}.log
+    done
+done

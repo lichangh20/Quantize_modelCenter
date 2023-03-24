@@ -266,9 +266,9 @@ class QLinear(nn.Linear):
         # print("input", input_flatten.abs().max())
         
         h_input = input_flatten.reshape(-1, qconfig.hadamard_group).matmul(self.hadamard).reshape(input_shape)
-        # print("h_input", h_input.abs().max())
-        # print("h_input2", h_input.abs().min())
-        # print("h_input3", h_input.abs().mean())
+        # print("h_input", h_input.float().abs().max())
+        # print("h_input2", h_input.float().abs().min())
+        # print("h_input3", h_input.float().abs().mean())
         
         weight_shape = self.weight.shape
         h_weight = self.weight.reshape(-1, qconfig.hadamard_group).matmul(self.hadamard).reshape(weight_shape)

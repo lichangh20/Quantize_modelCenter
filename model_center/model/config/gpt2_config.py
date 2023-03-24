@@ -60,6 +60,7 @@ class GPT2Config(Config):
                        tied = True,
                        cls_head = None,
                        post_layer_norm = False,
+                       quantize = False,
         ):
 
         super().__init__()
@@ -99,3 +100,4 @@ class GPT2Config(Config):
             self.dtype = torch.float
         self.cls_head = cls_head
         self.post_layer_norm = post_layer_norm
+        self.quantize = quantize

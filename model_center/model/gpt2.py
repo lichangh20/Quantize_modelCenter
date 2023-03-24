@@ -16,10 +16,10 @@
 import torch
 import torch.nn as nn
 from typing import Optional, List
-from ..layer import Encoder, Embedding, Linear
+from ..layer import Encoder, Embedding, Linear, QLinear
 from .basemodel import BaseModel, BaseModelOutput
 from .config import GPT2Config
-
+import bmtrain as bmt
 
 class GPT2(BaseModel):
 
@@ -74,30 +74,45 @@ class GPT2(BaseModel):
             length_scale = config.length_scale,
             attn_scale = config.attn_scale,
             dropout_p = config.dropout_p,
+            quantize = config.quantize,
         )
         # Output Layer
         if config.cls_head:
-            self.cls_projection = Linear(
-                dim_out = config.cls_head,
-                dim_in = config.dim_model,
-                length_scale = config.length_scale,
-                dtype = config.dtype,
-                int8 = config.int8,
-                init_mean = config.proj_init_mean,
-                init_std = config.proj_init_std,
-                bias = config.proj_bias,
-            )
+            if config.quantize:
+                self.cls_projection = bmt.BMTrainModelWrapper(QLinear(
+                    in_features = config.dim_model,
+                    out_features = config.cls_head,
+                    bias = config.proj_bias,
+                ))
+            else:
+                self.cls_projection = Linear(
+                    dim_out = config.cls_head,
+                    dim_in = config.dim_model,
+                    length_scale = config.length_scale,
+                    dtype = config.dtype,
+                    int8 = config.int8,
+                    init_mean = config.proj_init_mean,
+                    init_std = config.proj_init_std,
+                    bias = config.proj_bias,
+                )
         if not config.tied:
-            self.output_projection = Linear(
-                dim_out = config.vocab_size,
-                dim_in = config.dim_model,
-                length_scale = config.length_scale,
-                dtype = config.dtype,
-                int8 = config.int8,
-                init_mean = config.proj_init_mean,
-                init_std = config.proj_init_std,
-                bias = config.proj_bias,
-            )
+            if config.quantize:
+                self.output_projection = bmt.BMTrainModelWrapper(QLinear(
+                    in_features = config.dim_model,
+                    out_features = config.vocab_size,
+                    bias = config.proj_bias,
+                ))
+            else:
+                self.output_projection = Linear(
+                    dim_out = config.vocab_size,
+                    dim_in = config.dim_model,
+                    length_scale = config.length_scale,
+                    dtype = config.dtype,
+                    int8 = config.int8,
+                    init_mean = config.proj_init_mean,
+                    init_std = config.proj_init_std,
+                    bias = config.proj_bias,
+                )
 
     def forward(self,
                 input_ids: Optional[torch.Tensor] = None,

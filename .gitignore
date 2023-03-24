@@ -155,3 +155,4 @@ logs
 debug.sh
 examples/bert/result*
 examples/bert/core
+examples/gpt2/result*
