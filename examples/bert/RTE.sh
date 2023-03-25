@@ -16,7 +16,8 @@ BASE_PATH="/root/autodl-tmp/lichangh20/modelCenter/ModelCenter"
 VERSION="bert-large-cased"
 DATASET="RTE"
 
-for BATCH in 160
+for BATCH in 96
+# 160
 do
     for QUANTIZE in True False 
     # 
@@ -79,7 +80,8 @@ do
 done
 
 
-for BATCH in 224
+for BATCH in 100
+# 224
 do
     for QUANTIZE in True False 
     # 
@@ -109,8 +111,8 @@ do
     done
 done
 
-for BATCH in 416
-# 
+for BATCH in 160
+# 416
 do
     for QUANTIZE in True False
     # 

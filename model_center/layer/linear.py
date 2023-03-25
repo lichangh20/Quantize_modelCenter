@@ -80,18 +80,6 @@ class Linear(bmt.DistributedModule):
             x = x + self.bias
         return x
     
-T = {}
-
-size = 1
-H = torch.ones(1, 1).cuda()
-T[1] = H
-
-for i in range(7):
-    H = torch.cat((torch.cat([H, H], 1),
-                   torch.cat([H, -H], 1)), 0) / math.sqrt(2)
-    size *= 2
-    T[size] = H
-    
 class QuantizationConfig:
     def __init__(self):
         self.hadamard_group = 32
@@ -225,6 +213,19 @@ class QLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True):
         # print(qconfig.hadamard_group)
         super(QLinear, self).__init__(in_features, out_features, bias)
+
+        T = {}
+
+        size = 1
+        H = torch.ones(1, 1).cuda()
+        T[1] = H
+
+        for i in range(7):
+            H = torch.cat((torch.cat([H, H], 1),
+                           torch.cat([H, -H], 1)), 0) / math.sqrt(2)
+            size *= 2
+            T[size] = H
+
         self.initialize_weight = False
         self.initialize_input = False
         self.first_pass = False
