@@ -226,3 +226,73 @@ do
         ${CMD} 2>&1 | tee ${BASE_PATH}/logs/gpt2_superglue/finetune-gpt2-${VERSION}-${DATASET}.log
     done
 done
+
+for BATCH in 960
+do
+    for QUANTIZE in True False 
+    # 
+    do
+        OPTS=""
+        OPTS+=" --dataset ${DATASET}"
+        OPTS+=" --base-path ${BASE_PATH}"
+        OPTS+=" --model-config gpt2-${VERSION}"
+        OPTS+=" --batch-size $BATCH"
+        OPTS+=" --train-iters 800"
+        OPTS+=" --save-iters 1000"
+        OPTS+=" --max-decoder-length 128"
+        OPTS+=" --save ${BASE_PATH}/results"
+        OPTS+=" --save-name finetune-gpt2-ckpt"
+        OPTS+=" --lr 0.00005"
+        OPTS+=" --inspect-iters 100"
+        OPTS+=" --warmup-iters 100"
+        OPTS+=" --lr-decay-style constant"
+        OPTS+=" --weight-decay 1e-3"
+        OPTS+=" --clip-grad 10.0"
+        OPTS+=" --loss-scale 128"
+        OPTS+=" --seed 28"
+        OPTS+=" --dim_model 4096"
+        OPTS+=" --dim_ff 16384"
+        OPTS+=" --quantize $QUANTIZE"
+        # OPTS+=" --load ${BASE_PATH}/results/GPT2-${VERSION}.pt"
+
+        CMD="python3 -m torch.distributed.launch ${DISTRIBUTED_ARGS} ${BASE_PATH}/examples/gpt2/finetune_gpt2.py ${OPTS}"
+        echo ${CMD}
+
+        ${CMD} 2>&1 | tee ${BASE_PATH}/logs/gpt2_superglue/finetune-gpt2-${VERSION}-${DATASET}.log
+    done
+done
+
+for BATCH in 1536
+do
+    for QUANTIZE in True False 
+    # 
+    do
+        OPTS=""
+        OPTS+=" --dataset ${DATASET}"
+        OPTS+=" --base-path ${BASE_PATH}"
+        OPTS+=" --model-config gpt2-${VERSION}"
+        OPTS+=" --batch-size $BATCH"
+        OPTS+=" --train-iters 800"
+        OPTS+=" --save-iters 1000"
+        OPTS+=" --max-decoder-length 128"
+        OPTS+=" --save ${BASE_PATH}/results"
+        OPTS+=" --save-name finetune-gpt2-ckpt"
+        OPTS+=" --lr 0.00005"
+        OPTS+=" --inspect-iters 100"
+        OPTS+=" --warmup-iters 100"
+        OPTS+=" --lr-decay-style constant"
+        OPTS+=" --weight-decay 1e-3"
+        OPTS+=" --clip-grad 10.0"
+        OPTS+=" --loss-scale 128"
+        OPTS+=" --seed 28"
+        OPTS+=" --dim_model 2560"
+        OPTS+=" --dim_ff 10240"
+        OPTS+=" --quantize $QUANTIZE"
+        # OPTS+=" --load ${BASE_PATH}/results/GPT2-${VERSION}.pt"
+
+        CMD="python3 -m torch.distributed.launch ${DISTRIBUTED_ARGS} ${BASE_PATH}/examples/gpt2/finetune_gpt2.py ${OPTS}"
+        echo ${CMD}
+
+        ${CMD} 2>&1 | tee ${BASE_PATH}/logs/gpt2_superglue/finetune-gpt2-${VERSION}-${DATASET}.log
+    done
+done
